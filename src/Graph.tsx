@@ -1,7 +1,8 @@
 import React, { Component } from 'react';
-import { Table } from '@finos/perspective';
+import { Table, TableData } from '@finos/perspective';
 import { ServerRespond } from './DataStreamer';
 import './Graph.css';
+import { DataManipulator } from './DataManipulator';
 
 /**
  * Props declaration for <Graph />
@@ -34,25 +35,16 @@ class Graph extends Component<IProps, {}> {
     // Get element to attach the table from the DOM.
     const elem = document.getElementsByTagName('perspective-viewer')[0] as unknown as PerspectiveViewerElement;
 
-    elem.setAttribute('view', 'y_line');
-    elem.setAttribute('column-pivots', '["stock"]');
-    elem.setAttribute('row-pivots', '["timestamp"]');
-    elem.setAttribute('columns', '["top_ask_price"]');
-    elem.setAttribute('aggregates', `
-        {
-          "stock": "discount count",
-          "top_ask_price": "avg",
-          "top_bid_price": "avg",
-          "timestamp": "discount count"
-        }
-        `
-      );
+    
 
     const schema = {
-      stock: 'string',
-      top_ask_price: 'float',
-      top_bid_price: 'float',
+      price_abc: 'float',
+      price_def: 'float',
+      ratio: 'float',
       timestamp: 'date',
+      upper_bound: 'float',
+      lower_bound: 'float',
+      trigger_alert: 'float',
     };
 
     if (window.perspective && window.perspective.worker()) {
@@ -63,25 +55,32 @@ class Graph extends Component<IProps, {}> {
 
       // Add more Perspective configurations here.
       elem.load(this.table);
+
+      elem.setAttribute('view', 'y_line');
+      elem.setAttribute('row-pivots', '["timestamp"]');
+      elem.setAttribute('columns', '["ratio", "lower_bound","upper_bound", "trigger_alert"]');
+      elem.setAttribute('aggregates', JSON.stringify({
+        price_abc: 'avg',
+        price_def: 'avg',
+        ratio: 'avg',
+        timestamp: 'distinct count',
+        upper_bound: 'avg',
+        lower_bound: 'avg',
+        trigger_alert: 'avg',
+      }));
     }
   }
 
   componentDidUpdate() {
     // Everytime the data props is updated, insert the data into Perspective table
-    if (this.table) {
-      // As part of the task, you need to fix the way we update the data props to
-      // avoid inserting duplicated entries into Perspective table again.
-      this.table.update(this.props.data.map((el: any) => {
-        // Format the data from ServerRespond to the schema
-        return {
-          stock: el.stock,
-          top_ask_price: el.top_ask && el.top_ask.price || 0,
-          top_bid_price: el.top_bid && el.top_bid.price || 0,
-          timestamp: el.timestamp,
-        };
-      }));
+
+      if(this.table){
+        this.table.update([
+          DataManipulator.generateRow(this.props.data),
+        ] as unknown as TableData);
+      }
     }
   }
-}
+
 
 export default Graph;
